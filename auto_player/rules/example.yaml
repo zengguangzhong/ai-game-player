@@ -1,0 +1,107 @@
+# ============================================================
+# 抖音小游戏自动玩 —— 规则文件模板
+# ============================================================
+#
+# 【使用方法】
+# 1. 复制本文件,改名成你的游戏,如 rules/我的游戏.yaml
+# 2. 手动玩一遍游戏,把关键画面截图放进 images/ 目录
+#    (截图工具:Win+Shift+S 或微信截图,只截按钮那小块区域即可)
+# 3. 在下方 rules 里描述"看到什么图 → 做什么动作"
+# 4. 运行:python main.py --game 我的游戏
+#
+# 【关键概念】
+# - $match : 表示"当前命中的那个位置",用在 click/双击等动作里
+# - jitter : 点击坐标的随机抖动像素,让点击位置不固定,更像人
+# - delay  : 动作后的等待,可以是一个数(固定)或 [min,max](随机)
+# - cooldown: 规则触发后的冷却秒数,避免同一画面被狂点
+# - confidence: 匹配置信度阈值(0~1),越高越严格,0.85 比较稳
+# ============================================================
+
+game: 示例游戏
+
+window:
+  # 游戏窗口标题(部分匹配即可)。留空 = 全屏截图。
+  # 在浏览器里玩网页版时,填浏览器标签标题,如 "抖音小游戏 - Google Chrome"
+  title: "Chrome"
+  resolution: [1920, 1080]   # 期望分辨率,用于坐标基准
+
+settings:
+  loop_interval: [0.3, 0.6]  # 每轮扫描间隔(随机区间,秒)
+  confidence: 0.85           # 默认匹配置信度
+  on_error: continue         # 出错策略: continue(继续) | restart(重前台化) | stop(停止)
+  hotkey_stop: ctrl+esc      # 预留:紧急停止热键
+
+# ============================================================
+# 规则列表 —— 引擎每秒扫几遍屏幕,从上到下判断,
+# 命中第一条就执行其动作,然后等下一轮。
+# 用 priority 调整优先级(数字大的先判断)。
+# ============================================================
+rules:
+
+  # 规则1:看到"开始游戏"按钮就点
+  - name: 点击开始
+    priority: 10
+    cooldown: 2.0          # 点过后 2 秒内不再点,避免重复
+    when:
+      find_image: images/start.png
+      confidence: 0.85
+    then:
+      - click: $match       # 点命中的位置
+        jitter: 6           # 坐标随机抖动 ±6 像素
+        delay: [0.2, 0.5]   # 点完随机等 0.2~0.5 秒
+      - wait: 1.0           # 再等 1 秒让游戏进入下一画面
+
+  # 规则2:看到"继续"按钮就点(支持多个图任一出现)
+  - name: 继续游戏
+    priority: 9
+    cooldown: 1.5
+    when:
+      any:                            # any = 任一图出现就触发
+        - find_image: images/continue.png
+        - find_image: images/next.png
+    then:
+      - click: $match
+        jitter: 5
+        delay: [0.3, 0.6]
+
+  # 规则3:结算后点"再来一局"
+  - name: 再来一局
+    priority: 8
+    cooldown: 2.0
+    when:
+      find_image: images/restart.png
+    then:
+      - click: $match
+        jitter: 6
+        delay: [0.5, 1.0]
+      - wait: 2.0           # 等加载
+
+  # 规则4:遇到广告弹窗,点关闭(用找色定位红色叉号)
+  # —— 演示 find_color 用法
+  - name: 关闭广告
+    priority: 20            # 优先级最高,广告第一时间关
+    cooldown: 0.5
+    when:
+      find_color: "#FF3B30"
+    then:
+      - click: $match
+        jitter: 3
+        delay: [0.1, 0.3]
+
+  # 规则5:演示键盘动作 —— 某些游戏用空格继续
+  # - name: 空格继续
+  #   when:
+  #     find_image: images/pause.png
+  #   then:
+  #     - key: space
+  #       delay: [0.2, 0.4]
+
+  # 规则6:演示拖拽动作 —— 滑动类游戏
+  # - name: 滑动操作
+  #   when:
+  #     find_image: images/swipe_hint.png
+  #   then:
+  #     - drag:
+  #         from: $match
+  #         to: [960, 200]
+  #       delay: [0.3, 0.5]
